@@ -14,10 +14,14 @@ User = get_user_model()
 
 
 class CustomUserSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(read_only=True)
+
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'password')
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ('id', 'email', 'first_name', 'last_name', "full_name" ,'profile_pic', 'password')
+        extra_kwargs = {'password': {'write_only': True},
+                        'first_name': {'write_only': True},
+                        'last_name': {'write_only': True}}
 
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)

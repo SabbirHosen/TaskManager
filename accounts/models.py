@@ -1,4 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
+from django.apps import apps
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
@@ -14,11 +17,34 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+    profile_pic = models.ImageField(blank=True, upload_to='profile_pics')
+
+    boards = GenericRelation(
+        'boards.Board', object_id_field='owner_id', content_type_field='owner_model')
+    starred_boards = models.ManyToManyField('boards.Board', blank=True)
 
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
+
+    @property
+    def full_name(self):
+        return f"{self.first_name or ''} {self.last_name or ''}".strip()
+
+    def can_view_board(self, board):
+        ProjectMembership = apps.get_model('projects', 'ProjectMembership')
+
+        if board.owner_model == ContentType.objects.get(model='project'):
+            try:
+                pmem = ProjectMembership.objects.get(
+                    member=self, project__id=board.owner_id)
+            except ProjectMembership.DoesNotExist:
+                return False
+        else:
+            if board.owner_id != self.id:
+                return False
+        return True
 
     def __str__(self):
         return self.email

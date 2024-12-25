@@ -6,7 +6,7 @@ from .models import CustomUser, OTP
 
 class CustomUserAdmin(BaseUserAdmin):
     model = CustomUser
-    list_display = ('email', 'first_name', 'last_name', 'is_staff', 'is_active', 'is_email_verified', 'date_joined')
+    list_display = ('id','email', 'first_name', 'last_name', 'is_staff', 'is_active', 'is_email_verified', 'date_joined')
     list_filter = ('is_staff', 'is_active', 'is_email_verified')
     search_fields = ('email', 'first_name', 'last_name')
     ordering = ('date_joined',)

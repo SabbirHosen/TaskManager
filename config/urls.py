@@ -18,12 +18,15 @@ from django.contrib import admin
 from django.conf import settings
 from django.contrib.messages import api
 from django.urls import path, include
+from boards.views import NotificationList
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls'), name='accounts'),
-
+    path('projects/', include('projects.urls')),
+    path('boards/', include('boards.urls')),
+    path('notifications/', NotificationList.as_view(), name="notification-list"),
 ]
 
 if settings.DEBUG:
