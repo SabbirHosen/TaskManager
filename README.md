@@ -1,8 +1,8 @@
 
 
-# Backend Django Project Only Authentication
+# Task Manager
 
-This project is a Django-based web application using Django Rest Framework (DRF) for authentication using jwt with email verification.
+This project is a Django-based web application using Django Rest Framework (DRF) for Task Management.
 
 ## Running the Project with Docker
 
@@ -16,7 +16,7 @@ This project is a Django-based web application using Django Rest Framework (DRF)
 1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/yourproject.git
-   cd chatinit_backend
+   cd TaskManager
    ```
 
 2. Build and start the Docker containers:
@@ -38,7 +38,7 @@ This project is a Django-based web application using Django Rest Framework (DRF)
 1. Clone the repository:
    ```bash
    git clone https://github.com/yourusername/yourproject.git
-   cd chatinit_backend
+   cd TaskManager
    ```
 
 2. Create a virtual environment:

@@ -163,12 +163,12 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=15),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'ChatInit',
+    'TITLE': 'Task Manager',
     'DESCRIPTION': 'Your project description',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
