@@ -180,8 +180,8 @@ class SendProjectInvite(APIView):
                 print("token: ",token)
 
                 # if from_email=None, uses DEFAULT_FROM_EMAIL from settings.py
-                # send_mail(subject, message, from_email=None,
-                #           recipient_list=[to_email])
+                send_mail(subject, message, from_email=None,
+                          recipient_list=[to_email])
 
                 # Notification
                 Notification.objects.create(
