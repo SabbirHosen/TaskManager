@@ -8,7 +8,8 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 from projects.models import Project, ProjectMembership
 from projects.permissions import (IsProjectAdminOrMemberReadOnly,
                                   IsProjectMember)
@@ -32,7 +33,6 @@ r = redis.Redis(
 User = get_user_model()
 
 class BoardList(generics.ListCreateAPIView):
-
     serializer_class = ShortBoardSerializer
     permission_classes = [IsAuthenticated, IsProjectMember]
 
@@ -42,7 +42,6 @@ class BoardList(generics.ListCreateAPIView):
         return project
 
     def get_queryset(self, *args, **kwargs):
-
         project_id = self.request.GET.get('project', None)
         sort = self.request.GET.get('sort', None)
         search = self.request.GET.get('q', None)
@@ -69,6 +68,38 @@ class BoardList(generics.ListCreateAPIView):
             return queryset.filter(title__icontains=search)[:2]
         return queryset
 
+    @extend_schema(
+        request=ShortBoardSerializer,
+        responses={201: ShortBoardSerializer},
+        parameters=[
+            OpenApiParameter(
+                name="project",
+                type=OpenApiTypes.STR,
+                description="Filter boards by project ID"
+            ),
+            OpenApiParameter(
+                name="sort",
+                type=OpenApiTypes.STR,
+                description="Sort boards (e.g., 'recent')"
+            ),
+            OpenApiParameter(
+                name="q",
+                type=OpenApiTypes.STR,
+                description="Search for boards by title"
+            ),
+        ],
+        examples=[
+            OpenApiExample(
+                "Create Board Example",
+                description="Example payload for creating a board",
+                value={
+                    "title": "New Board",
+                    "project": "1"
+                },
+                request_only=True  # This is only for request payloads
+            )
+        ]
+    )
     def post(self, request, *args, **kwargs):
         serializer = ShortBoardSerializer(
             data=request.data, context={"request": request})
@@ -76,7 +107,6 @@ class BoardList(generics.ListCreateAPIView):
         print(f"Serializer errors: {serializer.errors}")
         print(f"requested data: {request.data}")
         if serializer.is_valid():
-
             if 'project' in request.data.keys():
                 project = self.get_project(request.data['project'])
                 serializer.save(

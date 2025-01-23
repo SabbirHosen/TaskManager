@@ -1,0 +1,19 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./Dockerfile"
+
+watchPatterns = [
+    "requirements.txt",      # Watch for changes in dependencies
+    "railway.toml",          # Watch for changes in this configuration file
+    "Dockerfile",            # Watch for changes in the Dockerfile
+    "static/**/*",           # Watch all files in the static directory recursively
+    "templates/**/*",        # Watch all files in the templates directory recursively
+    "*.py",                  # Watch Python files in the root directory
+    "**/*.py",               # Watch all Python files recursively in subdirectories
+    "**/*.html",             # Watch all HTML files in any directory
+    "**/*.css",              # Watch all CSS files for styling changes
+    "**/*.js",               # Watch all JavaScript files for front-end updates
+    "**/*.env",              # Watch environment variable files
+    "migrations/**/*.py",    # Watch migration files specifically
+    "settings.py",           # Watch for changes in Django settings
+]
