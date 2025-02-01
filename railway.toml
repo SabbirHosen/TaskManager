@@ -6,6 +6,7 @@ watchPatterns = [
     "requirements.txt",      # Watch for changes in dependencies
     "railway.toml",          # Watch for changes in this configuration file
     "Dockerfile",            # Watch for changes in the Dockerfile
+    "docker-compose.yml",
     "static/**/*",           # Watch all files in the static directory recursively
     "templates/**/*",        # Watch all files in the templates directory recursively
     "*.py",                  # Watch Python files in the root directory
