@@ -13,7 +13,7 @@ class CustomUserAdmin(BaseUserAdmin):
     readonly_fields = ('date_joined',)  # Mark date_joined as read-only
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        (_('Personal Info'), {'fields': ('first_name', 'last_name')}),
+        (_('Personal Info'), {'fields': ('first_name', 'last_name', 'profile_pic')}),
         (_('Permissions'),
          {'fields': ('is_active', 'is_staff', 'is_superuser', 'is_email_verified', 'groups', 'user_permissions')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),

@@ -8,8 +8,10 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample, OpenApiResponse
 from drf_spectacular.types import OpenApiTypes
+
+from config.utils.redis_handler import redis_client
 from projects.models import Project, ProjectMembership
 from projects.permissions import (IsProjectAdminOrMemberReadOnly,
                                   IsProjectMember)
@@ -25,16 +27,10 @@ from .serializers import (AttachmentSerializer, BoardSerializer,
                           ListSerializer, NotificationSerializer,
                           ShortBoardSerializer)
 
-r = redis.Redis(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    password=settings.REDIS_PASSWORD,
-    db=settings.REDIS_DB,
-    charset="utf-8",
-    decode_responses=True
-)
+r = redis_client
 
 User = get_user_model()
+
 
 class BoardList(generics.ListCreateAPIView):
     serializer_class = ShortBoardSerializer
@@ -61,8 +57,9 @@ class BoardList(generics.ListCreateAPIView):
         if project_id is None:
             project_ids = ProjectMembership.objects.filter(
                 member=self.request.user).values_list('project__id', flat=True)
-            queryset = Board.objects.filter(Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')) |
-                                            Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')))
+            queryset = Board.objects.filter(
+                Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')) |
+                Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')))
         else:
             queryset = Board.objects.filter(
                 owner_id=project_id, owner_model=ContentType.objects.get(model='project'))
@@ -104,6 +101,32 @@ class BoardList(generics.ListCreateAPIView):
             )
         ]
     )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(
+        summary="Create a new board",
+        description="Creates a new board for the authenticated user or for a specific project if provided.",
+        request=ShortBoardSerializer,
+        responses={
+            201: OpenApiResponse(response=ShortBoardSerializer, description="Board created successfully"),
+            400: OpenApiResponse(description="Validation error"),
+        },
+        examples=[
+            OpenApiExample(
+                name="Board Example",
+                value={
+                    "project": 1234,
+                    "title": "My Board",
+                    "image": None,
+                    "image_url": None,
+                    "color": "#FFFFFF"
+                },
+                description="An example of a valid request body",
+                request_only=True  # Ensures this example is for request payloads
+            )
+        ]
+    )
     def post(self, request, *args, **kwargs):
         serializer = ShortBoardSerializer(
             data=request.data, context={"request": request})
@@ -126,15 +149,15 @@ class BoardList(generics.ListCreateAPIView):
 
 
 class BoardDetail(generics.RetrieveUpdateDestroyAPIView):
-
     serializer_class = BoardSerializer
     permission_classes = [CanViewBoard]
 
     def get_queryset(self, *args, **kwargs):
         project_ids = ProjectMembership.objects.filter(
             member=self.request.user).values_list('project__id', flat=True)
-        return Board.objects.filter(Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')) |
-                                    Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')))
+        return Board.objects.filter(
+            Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')) |
+            Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')))
 
     def get_object(self):
         board_id = self.kwargs.get('pk')
@@ -182,7 +205,6 @@ class BoardStar(APIView):
 
 
 class ListShow(generics.ListCreateAPIView):
-
     serializer_class = ListSerializer
     permission_classes = [CanViewBoard]
 
@@ -219,7 +241,6 @@ class ListShow(generics.ListCreateAPIView):
 
 
 class ListDetail(generics.RetrieveUpdateDestroyAPIView):
-
     serializer_class = ListSerializer
     permission_classes = [CanViewBoard]
 
@@ -231,7 +252,6 @@ class ListDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ItemList(generics.ListCreateAPIView):
-
     serializer_class = ItemSerializer
     permission_classes = [CanViewBoard]
 
@@ -251,8 +271,9 @@ class ItemList(generics.ListCreateAPIView):
         if search is not None:
             project_ids = ProjectMembership.objects.filter(
                 member=self.request.user).values_list('project__id', flat=True)
-            boards = Board.objects.filter(Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')) |
-                                          Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')))
+            boards = Board.objects.filter(
+                Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')) |
+                Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')))
             if list_id is not None:
                 return Item.objects.filter(list=list, title__icontains=search)[:2]
             lists = List.objects.filter(board__in=boards)
@@ -282,7 +303,6 @@ class ItemList(generics.ListCreateAPIView):
 
 
 class ItemDetail(generics.RetrieveUpdateDestroyAPIView):
-
     serializer_class = ItemSerializer
     permission_classes = [CanViewBoard]
 
@@ -317,17 +337,20 @@ class ItemDetail(generics.RetrieveUpdateDestroyAPIView):
         if "assigned_to" in request.data:
             user = self.get_user(request.data["assigned_to"], item.list.board)
             if user is None:
-                return Response({"assigned_to": ["This user cannot view this board"]}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"assigned_to": ["This user cannot view this board"]},
+                                status=status.HTTP_400_BAD_REQUEST)
 
         if "labels" in request.data:
             label = self.get_label(request.data["labels"], item.list.board)
             if label is None:
-                return Response({"labels": ["This label doees not belong to this board"]}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"labels": ["This label doees not belong to this board"]},
+                                status=status.HTTP_400_BAD_REQUEST)
 
         if "list" in request.data:
             list = self.get_list(request.data['list'], item.list.board)
             if list is None:
-                return Response({'list': ["This list doesn't belong to this baord"]}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'list': ["This list doesn't belong to this baord"]},
+                                status=status.HTTP_400_BAD_REQUEST)
 
         return super().put(request, *args, **kwargs)
 
@@ -368,7 +391,6 @@ class ItemDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class CommentList(generics.ListCreateAPIView):
-
     serializer_class = CommentSerializer
     permission_classes = [CanViewBoard]
 
@@ -405,7 +427,6 @@ class CommentList(generics.ListCreateAPIView):
 
 
 class CommentDetail(generics.RetrieveUpdateDestroyAPIView):
-
     serializer_class = CommentSerializer
     permission_classes = [IsAuthorOrReadOnly]
 
@@ -428,7 +449,6 @@ class LabelList(generics.ListCreateAPIView):
         return board
 
     def get_queryset(self, *args, **kwargs):
-
         board_id = self.request.GET.get('board', None)
 
         board = self.get_board(board_id)
@@ -457,7 +477,6 @@ class LabelDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class LabelDetail(generics.RetrieveUpdateDestroyAPIView):
-
     queryset = Label.objects.all()
     serializer_class = LabelSerializer
     permission_classes = [
@@ -466,7 +485,6 @@ class LabelDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class AttachmentList(generics.ListCreateAPIView):
-
     queryset = Attachment.objects.all()
     serializer_class = AttachmentSerializer
     permission_classes = [
@@ -475,7 +493,6 @@ class AttachmentList(generics.ListCreateAPIView):
 
 
 class AttachmentDetail(generics.RetrieveUpdateDestroyAPIView):
-
     queryset = Attachment.objects.all()
     serializer_class = AttachmentSerializer
     permission_classes = [

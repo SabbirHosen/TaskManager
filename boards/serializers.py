@@ -128,7 +128,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'actor', 'verb', 'target_model',
-                  'target', 'action_object', 'unread', 'created_at']
+                  'target', 'action_object', 'unread', 'invitation_token', 'created_at']
 
     def get_target_model(self, obj):
         object_name = obj.target._meta.object_name

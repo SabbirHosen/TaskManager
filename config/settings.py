@@ -144,6 +144,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'static'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -196,30 +199,6 @@ REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 REDIS_DB = int(os.getenv('REDIS_DB', 0))
 
 REDIS_URL = os.getenv("REDIS_URL")
-if REDIS_URL:
-    # Parse the URL
-
-
-    url = urlparse(REDIS_URL)
-
-    REDIS_HOST = url.hostname
-    REDIS_PORT = url.port
-    REDIS_PASSWORD = url.password
-    REDIS_DB = 0  # Default DB (you can change this if needed)
-
-    r = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    password=REDIS_PASSWORD,
-    db=REDIS_DB,
-    charset="utf-8",
-    decode_responses=True
-)
-    try:
-        response = r.ping()
-        print("Connected to Redis:", response)
-    except redis.ConnectionError as e:
-        print("Failed to connect to Redis:", e)
 
 
 # CORS settings

@@ -10,6 +10,8 @@ from django.core.mail import send_mail
 from django.db.models import Case, When
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+
+from config.utils.redis_handler import redis_client
 from projects.models import Project, ProjectMembership
 from projects.permissions import IsProjectAdminOrMemberReadOnly
 from projects.serializers import ProjectMembershipSerializer, ProjectSerializer, ShortProjectSerializer
@@ -127,15 +129,7 @@ class ProjectMemberDetail(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-site_url = "http://localhost:8000/"
-r = redis.Redis(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    password=settings.REDIS_PASSWORD,
-    db=settings.REDIS_DB,
-    charset="utf-8",
-    decode_responses=True
-)
+r = redis_client
 
 
 class SendProjectInvite(APIView):
@@ -177,19 +171,19 @@ class SendProjectInvite(APIView):
                 token = str(uuid.uuid4())
                 redis_key = f'ProjectInvitation:{token}'
                 r.hmset(redis_key, {"user": user.id, "project": project.id})
-                subject = f'{request.user.full_name} has invited you to join {project.title}'
-                message = (f'Click on the following link to accept: {site_url}projects/join'
-                           f'/{token}')
-                to_email = user.email
+                # subject = f'{request.user.full_name} has invited you to join {project.title}'
+                # message = (f'Click on the following link to accept: {site_url}projects/join'
+                #            f'/{token}')
+                # to_email = user.email
                 print("token: ",token)
 
                 # if from_email=None, uses DEFAULT_FROM_EMAIL from settings.py
-                send_mail(subject, message, from_email=None,
-                          recipient_list=[to_email])
+                # send_mail(subject, message, from_email=None,
+                #           recipient_list=[to_email])
 
                 # Notification
                 Notification.objects.create(
-                    actor=request.user, recipient=user, verb='invited you to', target=project)
+                    actor=request.user, recipient=user, verb='invited you to', target=project, invitation_token=token)
             except User.DoesNotExist:
                 continue
         return Response(status=status.HTTP_204_NO_CONTENT)

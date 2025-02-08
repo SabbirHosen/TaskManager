@@ -134,6 +134,7 @@ class Notification(models.Model):
     action_object_id = models.PositiveIntegerField(null=True, blank=True)
     action_object = GenericForeignKey(
         'action_object_model', 'action_object_id')
+    invitation_token = models.CharField(max_length=255, blank=True, null=True, default=None)
 
     def __str__(self):
         if self.target:
