@@ -15,7 +15,6 @@ User = get_user_model()
 
 
 class LabelSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Label
         exclude = ('board',)
@@ -30,7 +29,6 @@ class CommentSerializer(serializers.ModelSerializer):
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Attachment
         fields = '__all__'
@@ -60,7 +58,7 @@ class ListSerializer(serializers.ModelSerializer):
     def get_items(self, obj):
         queryset = Item.objects.filter(list=obj).order_by('order')
         return ItemSerializer(queryset, many=True).data
-        
+
 
 # For homepage, exclude lists
 class ShortBoardSerializer(serializers.ModelSerializer):
@@ -152,3 +150,44 @@ class NotificationSerializer(serializers.ModelSerializer):
         serializer_module_path = f'{object_app}.serializers.{object_name}Serializer'
         serializer_class = import_string(serializer_module_path)
         return serializer_class(obj.action_object).data
+
+
+class ItemUpdateSerializer(serializers.Serializer):
+    assigned_to = serializers.CharField(
+        required=False,
+        help_text="Username of the user to assign the item to. Must have access to the board."
+    )
+    labels = serializers.IntegerField(
+        required=False,
+        help_text="ID of the label to add/remove. Must belong to the item's board."
+    )
+    list = serializers.IntegerField(
+        required=False,
+        help_text="ID of the list to move the item to. Must belong to the item's board."
+    )
+    image = serializers.ImageField(required=False, help_text="Upload an image for the item.")
+    image_url = serializers.URLField(required=False, help_text="Provide an external image URL.")
+    color = serializers.CharField(required=False, help_text="Set a custom color for the item.")
+
+
+class CommentCreateSerializer(serializers.Serializer):
+    item = serializers.IntegerField(
+        help_text="ID of the item this comment belongs to. Must be a valid item in the board."
+    )
+    text = serializers.CharField(
+        help_text="The content of the comment."
+    )
+
+
+class LabelCreateSerializer(serializers.Serializer):
+    board = serializers.IntegerField(
+        help_text="ID of the board this label will be associated with. Must be a valid board."
+    )
+    title = serializers.CharField(
+        max_length=255,
+        help_text="Title of the label (e.g., 'Bug', 'Feature')."
+    )
+    color = serializers.CharField(
+        max_length=255,
+        help_text="Color associated with the label (e.g., 'red', '#FF0000')."
+    )

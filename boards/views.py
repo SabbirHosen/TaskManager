@@ -25,7 +25,7 @@ from .permissions import CanViewBoard, IsAuthorOrReadOnly
 from .serializers import (AttachmentSerializer, BoardSerializer,
                           CommentSerializer, ItemSerializer, LabelSerializer,
                           ListSerializer, NotificationSerializer,
-                          ShortBoardSerializer)
+                          ShortBoardSerializer, ItemUpdateSerializer, CommentCreateSerializer, LabelCreateSerializer)
 
 r = redis_client
 
@@ -47,7 +47,7 @@ class BoardList(generics.ListCreateAPIView):
         search = self.request.GET.get('q', None)
 
         if sort == "recent":
-            redis_key = f'{self.request.user.username}:RecentlyViewedBoards'
+            redis_key = f'{self.request.user.email}:RecentlyViewedBoards'
             board_ids = r.zrange(redis_key, 0, 3, desc=True)
 
             preserved = Case(*[When(pk=pk, then=pos)
@@ -67,7 +67,7 @@ class BoardList(generics.ListCreateAPIView):
 
         if search is not None:
             return queryset.filter(title__icontains=search)[:2]
-        return queryset
+        return queryset.order_by('title')
 
     @extend_schema(
         request=ShortBoardSerializer,
@@ -120,7 +120,7 @@ class BoardList(generics.ListCreateAPIView):
                     "title": "My Board",
                     "image": None,
                     "image_url": None,
-                    "color": "#FFFFFF"
+                    "color": "FFFFFF"
                 },
                 description="An example of a valid request body",
                 request_only=True  # Ensures this example is for request payloads
@@ -214,26 +214,63 @@ class ListShow(generics.ListCreateAPIView):
         return board
 
     def get_queryset(self, *args, **kwargs):
-
         board_id = self.request.GET.get('board', None)
-
         board = self.get_board(board_id)
         return List.objects.filter(board=board).order_by('order')
 
+    @extend_schema(
+        summary="Get lists for a board",
+        description="Retrieve all lists that belong to a specific board. The `board` query parameter is required.",
+        parameters=[
+            OpenApiParameter(
+                name="board",
+                description="The ID of the board whose lists you want to retrieve",
+                required=True,
+                type=int,
+                location=OpenApiParameter.QUERY
+            )
+        ],
+        responses={
+            200: OpenApiResponse(response=ListSerializer(many=True), description="Lists retrieved successfully"),
+            400: OpenApiResponse(description="Missing `board` query parameter"),
+            403: OpenApiResponse(description="Permission denied"),
+        }
+    )
     def get(self, request, *args, **kwargs):
-
         board_id = self.request.GET.get('board', None)
 
         if board_id is None:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Missing 'board' query parameter"}, status=status.HTTP_400_BAD_REQUEST)
 
         return super().get(request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Create a new list",
+        description="Creates a new list for a given board. The `board` field is required in the request body.",
+        request=ListSerializer,
+        responses={
+            201: OpenApiResponse(response=ListSerializer, description="List created successfully"),
+            400: OpenApiResponse(description="Missing `board` field in request body"),
+            403: OpenApiResponse(description="Permission denied"),
+        },
+        examples=[
+            OpenApiExample(
+                name="Valid Request",
+                value={
+                    "title": "My List",
+                    "board": 1,
+                    'order': 1,
+                },
+                description="Example of a valid request to create a list",
+                request_only=True
+            )
+        ]
+    )
     def post(self, request, *args, **kwargs):
         if 'board' in request.data.keys():
             board = self.get_board(request.data['board'])
             return super().post(request, *args, **kwargs)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Missing 'board' field in request body"}, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_create(self, serializer):
         board = self.get_board(self.request.data['board'])
@@ -256,50 +293,84 @@ class ItemList(generics.ListCreateAPIView):
     permission_classes = [CanViewBoard]
 
     def get_list(self, pk):
-        list = get_object_or_404(List, pk=pk)
-        self.check_object_permissions(self.request, list.board)
-        return list
+        list_obj = get_object_or_404(List, pk=pk)
+        self.check_object_permissions(self.request, list_obj.board)
+        return list_obj
 
-    def get_queryset(self, *args, **kwargs):
+    def get_queryset(self):
+        list_id = self.request.GET.get('list')
+        search = self.request.GET.get('q')
 
-        list_id = self.request.GET.get('list', None)
-        search = self.request.GET.get('q', None)
+        if list_id:
+            list_obj = self.get_list(list_id)
+            return Item.objects.filter(list=list_obj).order_by('order')
 
-        if list_id is not None:
-            list = self.get_list(list_id)
-
-        if search is not None:
-            project_ids = ProjectMembership.objects.filter(
-                member=self.request.user).values_list('project__id', flat=True)
+        if search:
+            project_ids = ProjectMembership.objects.filter(member=self.request.user).values_list('project__id',
+                                                                                                 flat=True)
             boards = Board.objects.filter(
                 Q(owner_id__in=project_ids, owner_model=ContentType.objects.get(model='project')) |
-                Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser')))
-            if list_id is not None:
-                return Item.objects.filter(list=list, title__icontains=search)[:2]
+                Q(owner_id=self.request.user.id, owner_model=ContentType.objects.get(model='customuser'))
+            )
             lists = List.objects.filter(board__in=boards)
             return Item.objects.filter(list__in=lists, title__icontains=search)[:2]
 
-        return Item.objects.filter(list=list).order_by('order')
+        return Item.objects.none()
 
+    @extend_schema(
+        summary="Retrieve items for a specific list",
+        description="Fetches all items belonging to a given list. Requires `list` query parameter. Optionally, use `q` for search.",
+        parameters=[
+            OpenApiParameter(
+                name="list",
+                description="ID of the list whose items should be retrieved",
+                required=False,
+                type=int,
+                location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name="q",
+                description="Search items by title",
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY
+            )
+        ],
+        responses={
+            200: OpenApiResponse(response=ItemSerializer(many=True), description="List of items"),
+            400: OpenApiResponse(description="Invalid request parameters")
+        }
+    )
     def get(self, request, *args, **kwargs):
-
-        list_id = self.request.GET.get('list', None)
-        search = self.request.GET.get('q', None)
-
-        if list_id is None and search is None:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-
+        if not any(param in request.GET for param in ['list', 'q']):
+            return Response({"error": "Either 'list' or 'q' parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
         return super().get(request, *args, **kwargs)
 
+    @extend_schema(
+        summary="Create a new item",
+        description="Adds a new item to a specific list.",
+        request=ItemSerializer,
+        responses={
+            201: OpenApiResponse(response=ItemSerializer, description="Item created"),
+            400: OpenApiResponse(description="Invalid input data"),
+        },
+        examples=[
+            OpenApiExample(
+                name="Valid Item Creation",
+                value={"title": "New Task", "list": 5},
+                request_only=True,
+                description="Creating an item in list with ID 5."
+            )
+        ]
+    )
     def post(self, request, *args, **kwargs):
-        if 'list' in request.data.keys():
-            list = self.get_list(request.data['list'])
-            return super().post(request, *args, **kwargs)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        if 'list' not in request.data:
+            return Response({"error": "'list' field is required"}, status=status.HTTP_400_BAD_REQUEST)
+        return super().post(request, *args, **kwargs)
 
     def perform_create(self, serializer):
-        list = self.get_list(self.request.data['list'])
-        serializer.save(list=list)
+        list_obj = self.get_list(self.request.data['list'])
+        serializer.save(list=list_obj)
 
 
 class ItemDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -332,6 +403,11 @@ class ItemDetail(generics.RetrieveUpdateDestroyAPIView):
         self.check_object_permissions(self.request, item.list.board)
         return item
 
+    @extend_schema(
+        request=ItemUpdateSerializer,
+        responses={200: ItemSerializer},
+        description="Update an item with new assignments, labels, list movement, or appearance."
+    )
     def put(self, request, *args, **kwargs):
         item = self.get_object()
         if "assigned_to" in request.data:
@@ -406,6 +482,19 @@ class CommentList(generics.ListCreateAPIView):
         item = self.get_item(item_id)
         return Comment.objects.filter(item=item)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="item",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Filter comments by item ID."
+            )
+        ],
+        responses={200: CommentSerializer(many=True)},
+        description="Retrieve a list of comments for a specific item."
+    )
     def get(self, request, *args, **kwargs):
 
         item_id = self.request.GET.get('item', None)
@@ -415,6 +504,11 @@ class CommentList(generics.ListCreateAPIView):
 
         return super().get(request, *args, **kwargs)
 
+    @extend_schema(
+        request=CommentCreateSerializer,
+        responses={201: CommentSerializer},
+        description="Create a new comment for a specific item."
+    )
     def post(self, request, *args, **kwargs):
         if 'item' in request.data.keys():
             item = self.get_item(request.data['item'])
@@ -454,6 +548,32 @@ class LabelList(generics.ListCreateAPIView):
         board = self.get_board(board_id)
         return Label.objects.filter(board=board)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="board",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Filter labels by board ID."
+            )
+        ],
+        responses={200: LabelSerializer(many=True)},
+        description="Retrieve a list of labels for a specific board."
+    )
+    def get(self, request, *args, **kwargs):
+        board_id = self.request.GET.get('board')
+
+        if not board_id:
+            return Response({"error": "Missing 'board' query parameter."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return super().get(request, *args, **kwargs)
+
+    @extend_schema(
+        request=LabelCreateSerializer,
+        responses={201: LabelSerializer},
+        description="Create a new label for a specific board."
+    )
     def post(self, request, *args, **kwargs):
         if 'board' in request.data.keys():
             board = self.get_board(request.data['board'])
